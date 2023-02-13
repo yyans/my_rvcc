@@ -1,13 +1,126 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <stdarg.h>
+#include <string.h>
+#include <stdbool.h>
 
+// 每个Token都有自己的Kind
+typedef enum {
+	TK_PUNCT, // + -
+	TK_NUM, // num
+	TK_EOF, // 文件终结符
+} TokenKind;
+
+typedef struct Token Token;
+struct Token {
+	TokenKind kind;
+	Token *Next; // 指向下一个Token
+	int val;
+	char *Loc; // 在解析的字符串内的位置
+	int len; // 长度
+};
+
+// 输出错误信息
+// static 限制文件内使用
+// Fmt:传入的字符串, ...为可变参数,表示Fmt后面的参数
+static void error(char *Fmt, ...) {
+	// 使用可变参数的条件
+	va_list VA;
+	// VA获取Fmt后面的参数
+	va_start(VA, Fmt);
+
+	// 这里修改为stdout 即实现了println
+	vfprintf(stderr, Fmt, VA);
+	fprintf(stderr, "\n");
+
+	// 清楚VA
+	va_end(VA);
+	exit(1);
+}
+
+// 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
+static bool equal(Token *token, char *Str) {
+	// 比较字符串LHS（左部），RHS（右部）的前N位，S2的长度应大于等于N.
+	// 比较按照字典序，LHS<RHS回负值，LHS=RHS返回0，LHS>RHS返回正值
+	// 同时确保，此处的Op位数=N
+	return memcmp(token->Loc, Str, token->len) == 0 && Str[token->len] == '\0';
+}
+// 跳过指定的Str
+static Token *skip(Token *token, char *Str) {
+	if (!equal(token, Str)) {
+		error("expect '%s'", Str);
+	}
+	return token->Next;
+}
+
+// 返回TK_NUM的值
+static int getNumber(Token *token) {
+	if (token->kind != TK_NUM) {
+		error("expect a number");
+	}
+	return token->val;
+}
+
+// 生成一个Token
+// 这个函数设计的还挺秒！！！
+static Token *newToken(TokenKind Kind, char *Start, char *End) {
+	// 这里不free
+	// 1. 编译的生命周期不长
+	// 2. 减少复杂度
+	Token *token = calloc(1, sizeof(Token));
+	token->kind = Kind;
+	token->Loc = Start;
+	token->len = End - Start;
+	return token;
+}
+
+static Token *tokenize(char *P) {
+	Token Head = {};
+	Token *Cur = &Head;
+
+	while (*P) {
+		// 跳过所有空白 回车等
+		if (isspace(*P)) {
+			++P;
+			continue;
+		}
+		// 解析数字
+		if (isdigit(*P)) {
+			Cur->Next = newToken(TK_NUM, P, P);
+			Cur = Cur->Next;
+
+			const char *OldPtr = P;
+			Cur->val = strtoul(P, &P, 10);
+			Cur->len = P - OldPtr;
+
+			continue;
+		}
+
+		// 解析操作符
+		if (*P == '+' || *P == '-') {
+			Cur->Next = newToken(TK_PUNCT, P, P + 1);
+			Cur = Cur->Next;
+			++P;
+			continue;
+		}
+
+		error("invalid token: %c", *P);
+	} 
+
+	Cur->Next = newToken(TK_EOF, P, P);
+
+	return Head.Next;
+}
 
 int main(int Argc, char **Argv) {
 	if (Argc != 2) {
-			// 异常处理
-			fprintf(stderr, "%s: invalid number of args\n", Argv[0]);
-			return 1;
+		// 异常处理
+		error("%s: invalid number of arguments", Argv[0]);
 	}
+
+	// 解析 Argv[1]
+	Token *token = tokenize(Argv[1]);
 
 	// p指向输入算式的str
 	char *P = Argv[1];
@@ -21,24 +134,24 @@ int main(int Argc, char **Argv) {
 	// str -- 要转换为长整数的字符串。
 	// endptr -- 对类型为 char* 的对象的引用，其值由函数设置为 str 中数值后的下一个字符。
 	// base -- 基数，必须介于 2 和 36（包含）之间，或者是特殊值 0。
-	printf("  li a0, %ld\n", strtol(P, &P, 10));
+	printf("  li a0, %d\n", getNumber(token));
+	token = token->Next;
 
-	while (*P) {
-		if (*P == '+') {
-			++P; // 跳过op
-			printf("  addi a0, a0, %ld\n", strtol(P, &P, 10));
+	while (token->kind != TK_EOF) {
+		if (equal(token, "+")) {
+			token = token->Next;
+			printf("  addi a0, a0, %d\n", getNumber(token));
+			token = token->Next;
 			continue;
 		}
-		if (*P == '-') {
-			++P;
-			printf("  addi a0, a0, -%ld\n", strtol(P, &P, 10));
-			continue;
-		}
-		// 遇到未解析的字符时
-		fprintf(stderr, "unexepected character: %c\n", *P);
-		return 1;
+		// 不是+ 则是-
+		token = skip(token, "-");
+		printf("  addi a0, a0, -%d\n", getNumber(token));
+		token = token->Next;
 	}
 
+	// ret为jalr x0, x1, 0别名指令，用于返回子程序
+  	// 返回的为a0的值
 	printf("  ret\n");
 
 	return 0;
