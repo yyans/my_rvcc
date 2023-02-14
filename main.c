@@ -21,6 +21,9 @@ struct Token {
 	int len; // 长度
 };
 
+// 输入的字符串
+static char *CurrentInput;
+
 // 输出错误信息
 // static 限制文件内使用
 // Fmt:传入的字符串, ...为可变参数,表示Fmt后面的参数
@@ -39,6 +42,38 @@ static void error(char *Fmt, ...) {
 	exit(1);
 }
 
+// 输出错误出现的位置
+static void verrorAt(char *Loc, char *Fmt, va_list VA) {
+	// 输出源信息
+	fprintf(stderr, "%s\n", CurrentInput);
+   
+    // 输出错误信息
+	// 计算出错的位置
+	int Pos = Loc - CurrentInput;
+	// 填充Pos个空格
+	fprintf(stderr, "%*s", Pos, "");
+	fprintf(stderr, "^ ");
+	vfprintf(stderr, Fmt, VA);
+	fprintf(stderr, "\n");
+  	va_end(VA);
+}
+
+// 字符串解析时出错
+static void errorAt(char *Loc, char *Fmt, ...) {
+	va_list VA;
+	va_start(VA, Fmt);
+	verrorAt(Loc, Fmt, VA);
+	exit(1);
+}
+
+// Token解析时出错
+static void errorTok(Token *token, char *Fmt, ...) {
+	va_list VA;
+	va_start(VA, Fmt);
+	verrorAt(token->Loc, Fmt, VA);
+	exit(1);
+}
+
 // 判断Tok的值是否等于指定值，没有用char，是为了后续拓展
 static bool equal(Token *token, char *Str) {
 	// 比较字符串LHS（左部），RHS（右部）的前N位，S2的长度应大于等于N.
@@ -49,7 +84,7 @@ static bool equal(Token *token, char *Str) {
 // 跳过指定的Str
 static Token *skip(Token *token, char *Str) {
 	if (!equal(token, Str)) {
-		error("expect '%s'", Str);
+		errorTok(token, "expect '%s'", Str);
 	}
 	return token->Next;
 }
@@ -57,7 +92,7 @@ static Token *skip(Token *token, char *Str) {
 // 返回TK_NUM的值
 static int getNumber(Token *token) {
 	if (token->kind != TK_NUM) {
-		error("expect a number");
+		errorTok(token, "expect a number");
 	}
 	return token->val;
 }
@@ -75,7 +110,8 @@ static Token *newToken(TokenKind Kind, char *Start, char *End) {
 	return token;
 }
 
-static Token *tokenize(char *P) {
+static Token *tokenize() {
+	char *P = CurrentInput;
 	Token Head = {};
 	Token *Cur = &Head;
 
@@ -105,7 +141,7 @@ static Token *tokenize(char *P) {
 			continue;
 		}
 
-		error("invalid token: %c", *P);
+		errorAt(P, "invalid token");
 	} 
 
 	Cur->Next = newToken(TK_EOF, P, P);
@@ -119,11 +155,10 @@ int main(int Argc, char **Argv) {
 		error("%s: invalid number of arguments", Argv[0]);
 	}
 
+	// CurrentInput指向输入算式的str
+	CurrentInput = Argv[1];
 	// 解析 Argv[1]
-	Token *token = tokenize(Argv[1]);
-
-	// p指向输入算式的str
-	char *P = Argv[1];
+	Token *token = tokenize();
 
 	// 声明一个全局main段，同时也是程序入口段
 	printf("  .globl main\n");
