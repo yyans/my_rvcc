@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdbool.h>
+#include <assert.h>
 
 // 每个Token都有自己的Kind
 typedef enum {
@@ -134,7 +135,7 @@ static Token *tokenize() {
 		}
 
 		// 解析操作符
-		if (*P == '+' || *P == '-') {
+		if (ispunct) {
 			Cur->Next = newToken(TK_PUNCT, P, P + 1);
 			Cur = Cur->Next;
 			++P;
@@ -143,10 +144,187 @@ static Token *tokenize() {
 
 		errorAt(P, "invalid token");
 	} 
-
+	// 解析结束 增加一个EOF 表示结束
 	Cur->Next = newToken(TK_EOF, P, P);
-
+	// Head 无内容
 	return Head.Next;
+}
+
+/**
+ * 接下来语法分析
+ * 生成AST(抽象语法树) !!!
+*/
+
+// AST的节点种类
+typedef enum {
+	ND_ADD,
+	ND_SUB,
+	ND_MUL,
+	ND_DIV,
+	ND_NUM, // 整形
+} NodeKind;
+
+// AST中二叉树节点
+typedef struct Node Node;
+struct Node {
+	NodeKind Kind; // 节点类型
+	Node *LHS; // 左节点
+	Node *RHS; // 右节点
+	int Val; // 储存ND_NUM种类的值
+};
+
+// 新建一个节点
+static Node *newNode(NodeKind kind) {
+	Node *Nd = calloc(1, sizeof(Node));
+	Nd->Kind = kind;
+	return Nd;
+}
+
+// 新建一个二叉树节点
+static Node *newBinary(NodeKind kind, Node *LHS, Node *RHS) {
+	Node *Nd = newNode(kind);
+	Nd->LHS = LHS;
+	Nd->RHS = RHS;
+	return Nd;
+}
+
+// 新建一个数字节点
+static Node *newNum(int Val) {
+	Node *Nd = newNode(ND_NUM);
+	Nd->Val = Val;
+	return Nd;
+}
+
+// expr = mul ("+" mul | "-" mul)*
+// mul = primary ("*" primary | "/" primary)*
+// primary = "(" expr ")" | num
+static Node *expr(Token **Rest, Token *Tok);
+static Node *mul(Token **Rest, Token *Tok);
+static Node *primary(Token **Rest, Token *Tok);
+
+// 解析加减
+static Node *expr(Token **Rest, Token *Tok) {
+	// mul
+	Node *Nd = mul(&Tok, Tok);
+
+	while (true) {
+		// + mul
+		if (equal(Tok, "+")) {
+			Nd = newBinary(ND_ADD, Nd, mul(&Tok, Tok->Next));
+			continue;
+		}
+
+		// - mul
+		if (equal(Tok, "-")) {
+			Nd = newBinary(ND_SUB, Nd, mul(&Tok, Tok->Next));
+			continue;
+		}
+
+		*Rest = Tok;
+		return Nd;
+	}
+}
+
+// 解析乘除
+static Node *mul(Token **Rest, Token *Tok) {
+	// primary
+	Node *Nd = primary(&Tok, Tok);
+
+	while (true) {
+		// * primary
+		if (equal(Tok, "*")) {
+			Nd = newBinary(ND_MUL, Nd, primary(&Tok, Tok->Next));
+			continue;
+		}
+
+		// / primary
+		if (equal(Tok, "/")) {
+			Nd = newBinary(ND_DIV, Nd, primary(&Tok, Tok->Next));
+			continue;
+		}
+
+		*Rest = Tok;
+		return Nd;
+	}
+}
+
+// 解析括号、数字
+static Node *primary(Token **Rest, Token *Tok) {
+	// "("  expr  ")"
+	if (equal(Tok, "(")) {
+		Node *Nd = expr(&Tok, Tok->Next);
+		*Rest = skip(Tok, ")");
+		return Nd;
+	}
+
+	if (Tok->kind == TK_NUM) {
+		Node *Nd = newNum(Tok->val);
+		*Rest = Tok->Next;
+		return Nd;
+	}
+
+	errorTok(Tok, "expected expression");
+	return NULL;
+}
+
+/**
+ * 接下来是语义分析部分
+ * 可以理解为后端部分
+*/
+
+// 记录栈的深度
+static int Depth;
+
+// 压栈
+static void push() {
+	printf("  addi sp, sp, -8\n");
+	printf("  sd a0, 0(sp)\n");
+	Depth++;
+}
+
+// 弹栈
+static void pop(char *Reg) {
+	printf("  ld %s, 0(sp)\n", Reg);
+	printf("  addi sp, sp, 8\n");
+	Depth--;
+}
+
+// 生成表达式
+static void genExpr(Node *Nd) {
+	// 加载数字到a0
+	if (Nd->Kind == ND_NUM) {
+		printf("  li a0, %d\n", Nd->Val);
+		return ;
+	}
+
+	// 递归到最右边
+	genExpr(Nd->RHS);
+	// 压栈
+	push();
+	// 递归到左边
+	genExpr(Nd->LHS);
+	// 弹栈
+	pop("a1");
+
+	// 根据各二叉树节点生成汇编
+	switch (Nd->Kind) {
+		case ND_ADD:
+			printf("add a0, a0, a1\n");
+			return ;
+		case ND_SUB:
+			printf("sub a0, a0, a1\n");
+			return ;
+		case ND_MUL:
+			printf("mul a0, a0, a1\n");
+			return ;
+		case ND_DIV:
+			printf("div a0, a0, a1\n");
+			return ;
+		default:
+			break;
+	}
+
+	error("invalid expression");
 }
 
 int main(int Argc, char **Argv) {
@@ -160,34 +338,26 @@ int main(int Argc, char **Argv) {
 	// 解析 Argv[1]
 	Token *token = tokenize();
 
+	// 解析终结字符流 生成AST
+	Node *Nd = expr(&token, token);
+
+	if (token->kind != TK_EOF) {
+		errorTok(token, "extra Token");
+	}
+
 	// 声明一个全局main段，同时也是程序入口段
 	printf("  .globl main\n");
 	printf("main:\n");
 
-	/// 以下我们将算式分解为 num (op num)(op num)..
-	
-	// str -- 要转换为长整数的字符串。
-	// endptr -- 对类型为 char* 的对象的引用，其值由函数设置为 str 中数值后的下一个字符。
-	// base -- 基数，必须介于 2 和 36（包含）之间，或者是特殊值 0。
-	printf("  li a0, %d\n", getNumber(token));
-	token = token->Next;
-
-	while (token->kind != TK_EOF) {
-		if (equal(token, "+")) {
-			token = token->Next;
-			printf("  addi a0, a0, %d\n", getNumber(token));
-			token = token->Next;
-			continue;
-		}
-		// 不是+ 则是-
-		token = skip(token, "-");
-		printf("  addi a0, a0, -%d\n", getNumber(token));
-		token = token->Next;
-	}
+	// 遍历AST树生成汇编
+	genExpr(Nd);
 
 	// ret为jalr x0, x1, 0别名指令，用于返回子程序
   	// 返回的为a0的值
 	printf("  ret\n");
+
+	// 如果栈未清空则报错
+  	assert(Depth == 0);
 
 	return 0;
 }
