@@ -161,6 +161,7 @@ typedef enum {
 	ND_SUB,
 	ND_MUL,
 	ND_DIV,
+	ND_NEG, // 负号
 	ND_NUM, // 整形
 } NodeKind;
 
@@ -180,6 +181,13 @@ static Node *newNode(NodeKind kind) {
 	return Nd;
 }
 
+// 新建一个单叉树(节点)
+static Node *newUnary(NodeKind kind, Node *Expr) {
+	Node *Nd = newNode(kind);
+	Nd->LHS = Expr;
+	return Nd;
+}
+
 // 新建一个二叉树节点
 static Node *newBinary(NodeKind kind, Node *LHS, Node *RHS) {
 	Node *Nd = newNode(kind);
@@ -196,10 +204,12 @@ static Node *newNum(int Val) {
 }
 
 // expr = mul ("+" mul | "-" mul)*
-// mul = primary ("*" primary | "/" primary)*
+// mul = unary ("*" unary | "/" unary)*
+// unary = ("+" | "-") unary | primary
 // primary = "(" expr ")" | num
 static Node *expr(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
+static Node *unary(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
 
 // 解析加减
@@ -228,24 +238,39 @@ static Node *expr(Token **Rest, Token *Tok) {
 // 解析乘除
 static Node *mul(Token **Rest, Token *Tok) {
 	// primary
-	Node *Nd = primary(&Tok, Tok);
+	Node *Nd = unary(&Tok, Tok);
 
 	while (true) {
 		// * primary
 		if (equal(Tok, "*")) {
-			Nd = newBinary(ND_MUL, Nd, primary(&Tok, Tok->Next));
+			Nd = newBinary(ND_MUL, Nd, unary(&Tok, Tok->Next));
 			continue;
 		}
 
 		// / primary
 		if (equal(Tok, "/")) {
-			Nd = newBinary(ND_DIV, Nd, primary(&Tok, Tok->Next));
+			Nd = newBinary(ND_DIV, Nd, unary(&Tok, Tok->Next));
 			continue;
 		}
 
 		*Rest = Tok;
 		return Nd;
 	}
+}
+
+// 解析 正负号
+static Node *unary(Token **Rest, Token *Tok) {
+	// + unary
+	if (equal(Tok, "+")) {
+		return unary(Rest, Tok->Next);
+	}
+
+	// - unary
+	if (equal(Tok, "-")) {
+		return newUnary(ND_NEG, unary(Rest, Tok->Next));
+	}
+
+	return primary(Rest, Tok);
 }
 
 // 解析括号、数字
@@ -291,10 +316,18 @@ static void pop(char *Reg) {
 
 // 生成表达式
 static void genExpr(Node *Nd) {
+	switch (Nd->Kind) {
 	// 加载数字到a0
-	if (Nd->Kind == ND_NUM) {
+	case ND_NUM:
 		printf("  li a0, %d\n", Nd->Val);
 		return ;
+	// 对寄存器取反
+	case ND_NEG:
+		genExpr(Nd->LHS);
+		printf("  neg a0, a0\n");
+		return ;
+	default:
+		break;
 	}
 
 	// 递归到最右边

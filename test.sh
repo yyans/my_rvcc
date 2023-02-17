@@ -30,6 +30,6 @@ assert() {
 assert 0 0
 assert 100 100
 assert 17 '1-8/(2*2)+3*6'
-assert 1 's + 1'
+assert 0 '-1 + + - - 1'
 
 echo OK
