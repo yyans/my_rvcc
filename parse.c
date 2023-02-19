@@ -1,5 +1,8 @@
 #include "rvcc.h"
 
+// program = stmt*
+// stmt = exprStmt
+// exprStmt = expr ";"
 // expr = equality
 // equality = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
@@ -7,6 +10,8 @@
 // mul = unary ("*" unary | "/" unary)*
 // unary = ("+" | "-") unary | primary
 // primary = "(" expr ")" | num
+static Node *stmt(Token **Rest, Token *Tok);
+static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
 static Node *equality(Token **Rest, Token *Tok);
 static Node *relational(Token **Rest, Token *Tok);
@@ -41,6 +46,18 @@ static Node *newBinary(NodeKind kind, Node *LHS, Node *RHS) {
 static Node *newNum(int Val) {
 	Node *Nd = newNode(ND_NUM);
 	Nd->Val = Val;
+	return Nd;
+}
+
+// 解析语句
+// stmt = exprStmt
+static Node *stmt(Token **Rest, Token *Tok) { return exprStmt(Rest, Tok); }
+
+// 解析表达式语句
+// exprStmt = expr ";"
+static Node *exprStmt(Token **Rest, Token *Tok) {
+	Node *Nd = newUnary(ND_EXPR_STMT, expr(&Tok, Tok));
+	*Rest = skip(Tok, ";");
 	return Nd;
 }
 
@@ -194,9 +211,11 @@ static Node *primary(Token **Rest, Token *Tok) {
 
 // 语法解析入口函数
 Node *parse(Token *Tok) {
-    Node *Nd = expr(&Tok, Tok);
-    if (Tok->kind != TK_EOF) {
-		errorTok(Tok, "extra Token");
+    Node Head = {};
+	Node *Cur = &Head;
+    while (Tok->kind != TK_EOF) {
+		Cur->Next = stmt(&Tok, Tok);
+		Cur = Cur->Next;
 	}
-    return Nd;
+    return Head.Next;
 }

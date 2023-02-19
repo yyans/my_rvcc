@@ -88,18 +88,27 @@ static void genExpr(Node *Nd) {
 	error("invalid expression");
 }
 
+// 生成语句
+static void genStmt(Node *Nd) {
+	if (Nd->Kind == ND_EXPR_STMT) {
+		genExpr(Nd->LHS);
+		return ;
+	}
+	error("invalid expression");
+}
+
 void codegen(Node *Nd) {
     // 声明一个全局main段，同时也是程序入口段
 	printf("  .globl main\n");
 	printf("main:\n");
 
-	// 遍历AST树生成汇编
-	genExpr(Nd);
+	// 遍历所有语句节点
+	for (Node *N = Nd; N; N = N->Next) {
+		genStmt(N);
+		assert(Depth == 0);
+	}
 
 	// ret为jalr x0, x1, 0别名指令，用于返回子程序
   	// 返回的为a0的值
 	printf("  ret\n");
-
-	// 如果栈未清空则报错
-  	assert(Depth == 0);
 }

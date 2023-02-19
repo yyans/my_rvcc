@@ -59,6 +59,7 @@ typedef enum {
 	ND_NE,
 	ND_LT,
 	ND_LE,
+	ND_EXPR_STMT, // 表达式语句
 	ND_NUM, // 整形
 } NodeKind;
 
@@ -66,6 +67,7 @@ typedef enum {
 typedef struct Node Node;
 struct Node {
 	NodeKind Kind; // 节点类型
+	Node *Next; // 下一个表达式
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点
 	int Val; // 储存ND_NUM种类的值
