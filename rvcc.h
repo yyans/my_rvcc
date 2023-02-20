@@ -18,6 +18,7 @@
 
 // 每个Token都有自己的Kind
 typedef enum {
+	TK_IDENT, // 变量标识符
 	TK_PUNCT, // + -
 	TK_NUM, // num
 	TK_EOF, // 文件终结符
@@ -59,7 +60,9 @@ typedef enum {
 	ND_NE,
 	ND_LT,
 	ND_LE,
+	ND_ASSIGN, // 赋值
 	ND_EXPR_STMT, // 表达式语句
+	ND_VAR, // 变量类型
 	ND_NUM, // 整形
 } NodeKind;
 
@@ -70,6 +73,7 @@ struct Node {
 	Node *Next; // 下一个表达式
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点
+	char varName; // 变量名
 	int Val; // 储存ND_NUM种类的值
 };
 

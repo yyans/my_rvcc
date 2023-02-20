@@ -3,16 +3,18 @@
 // program = stmt*
 // stmt = exprStmt
 // exprStmt = expr ";"
-// expr = equality
+// expr = assign
+// assign = equality ("=" assign)
 // equality = relational ("==" relational | "!=" relational)*
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add = mul ("+" mul | "-" mul)*
 // mul = unary ("*" unary | "/" unary)*
 // unary = ("+" | "-") unary | primary
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | ident｜ num
 static Node *stmt(Token **Rest, Token *Tok);
 static Node *exprStmt(Token **Rest, Token *Tok);
 static Node *expr(Token **Rest, Token *Tok);
+static Node *assign(Token **Rest, Token *Tok);
 static Node *equality(Token **Rest, Token *Tok);
 static Node *relational(Token **Rest, Token *Tok);
 static Node *add(Token **Rest, Token *Tok);
@@ -49,6 +51,13 @@ static Node *newNum(int Val) {
 	return Nd;
 }
 
+// 新建一个变量
+static Node *newVarNode(char Name) {
+	Node *Nd = newNode(ND_VAR);
+	Nd->varName = Name;
+	return Nd;
+}
+
 // 解析语句
 // stmt = exprStmt
 static Node *stmt(Token **Rest, Token *Tok) { return exprStmt(Rest, Tok); }
@@ -63,7 +72,22 @@ static Node *exprStmt(Token **Rest, Token *Tok) {
 
 // 解析表达式
 // expr = equality
-static Node *expr(Token **Rest, Token *Tok) { return equality(Rest, Tok); }
+static Node *expr(Token **Rest, Token *Tok) { return assign(Rest, Tok); }
+
+// 解析赋值
+// assign = equality ("=" assign)
+static Node *assign(Token **Rest, Token *Tok) {
+	// equality
+	Node *Nd = equality(&Tok, Tok);
+
+	// 可能存在递归赋值 但是原程序没写 我就没写
+	// ("=" assign)
+	if (equal(Tok, "=")) {
+		Nd = newBinary(ND_ASSIGN, Nd, assign(&Tok, Tok->Next));
+	}
+	*Rest = Tok;
+	return Nd;
+}
 
 // 解析相等性
 // equality = relational ("==" relational | "!=" relational)*
@@ -191,6 +215,7 @@ static Node *unary(Token **Rest, Token *Tok) {
 }
 
 // 解析括号、数字
+// primary = "(" expr ")" | ident｜ num
 static Node *primary(Token **Rest, Token *Tok) {
 	// "("  expr  ")"
 	if (equal(Tok, "(")) {
@@ -199,6 +224,14 @@ static Node *primary(Token **Rest, Token *Tok) {
 		return Nd;
 	}
 
+	// ident
+	if (Tok->kind == TK_IDENT) {
+		Node *Nd = newVarNode(*Tok->Loc);
+		*Rest = Tok->Next;
+		return Nd;
+	}
+
+	// num
 	if (Tok->kind == TK_NUM) {
 		Node *Nd = newNum(Tok->val);
 		*Rest = Tok->Next;

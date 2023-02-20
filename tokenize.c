@@ -129,6 +129,13 @@ Token *tokenize(char *P) {
 			continue;
 		}
 
+		if (*P >= 'a' && *P <= 'z') {
+			Cur->Next = newToken(TK_IDENT, P, P + 1);
+			Cur = Cur->Next;
+			++P;
+			continue;
+		}
+
 		// 解析操作符
 		int PunctLen = readPunct(P);
 		if (PunctLen) {
