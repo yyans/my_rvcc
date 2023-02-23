@@ -10,10 +10,10 @@ int main(int Argc, char **Argv) {
 	Token *Tok = tokenize(Argv[1]);
 
 	// 解析终结字符流 生成AST
-	Node *Nd = parse(Tok);
+	Function *Prog = parse(Tok);
 
 	// 根据AST生成代码
-	codegen(Nd);
+	codegen(Prog);
 
 	return 0;
 }

@@ -105,6 +105,17 @@ static int readPunct(char *Ptr) {
 	return ispunct(*Ptr) ? 1 : 0;
 }
 
+// 判断标记符的首字母规则
+// [a-zA-Z_]
+static bool isIdent1(char C) {
+  // a-z与A-Z在ASCII中不相连，所以需要分别判断
+  return ('a' <= C && C <= 'z') || ('A' <= C && C <= 'Z') || C == '_';
+}
+
+static bool isIdent2(char C) {
+	return isIdent1(C) || ('0' <= C && C <= '9');
+}
+
 // 生成终结符流
 Token *tokenize(char *P) {
 	CurrentInput = P;
@@ -129,10 +140,15 @@ Token *tokenize(char *P) {
 			continue;
 		}
 
-		if (*P >= 'a' && *P <= 'z') {
-			Cur->Next = newToken(TK_IDENT, P, P + 1);
+		// 解析标记符
+    	// [a-zA-Z_][a-zA-Z0-9_]*
+		if (isIdent1(*P)) {
+			char *Start = P;
+			do {
+				++P;
+			} while(isIdent2(*P));
+			Cur->Next = newToken(TK_IDENT, Start, P);
 			Cur = Cur->Next;
-			++P;
 			continue;
 		}
 

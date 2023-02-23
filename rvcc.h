@@ -1,3 +1,8 @@
+// 使用POSIX.1标准
+// 使用了strndup函数
+#define _POSIX_C_SOURCE 200809L
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -18,7 +23,7 @@
 
 // 每个Token都有自己的Kind
 typedef enum {
-	TK_IDENT, // 变量标识符
+	TK_IDENT, // 变量标识符、函数名等
 	TK_PUNCT, // + -
 	TK_NUM, // num
 	TK_EOF, // 文件终结符
@@ -49,6 +54,24 @@ Token *tokenize(char *Input);
 // 生成AST（抽象语法树），语法解析
 //
 
+typedef struct Node Node;
+
+// 本地变量
+typedef struct Obj Obj;
+struct Obj {
+	Obj *Next; // 指向下一个对象
+	char *Name; // 变量名
+	int offset; // 变量在栈中的偏移量
+};
+
+// 函数
+typedef struct Function Function;
+struct Function {
+	Node *Body; // 函数体
+	Obj *Locals; // 本地变量
+	int StackSize; // 存储变量的栈大小
+};
+
 // AST的节点种类
 typedef enum {
 	ND_ADD,
@@ -73,16 +96,16 @@ struct Node {
 	Node *Next; // 下一个表达式
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点
-	char varName; // 变量名
+	Obj *Var; // 存储ND_VAR种类的变量
 	int Val; // 储存ND_NUM种类的值
 };
 
 // 语法分析入口函数
-Node *parse(Token *Tok);
+Function *parse(Token *Tok);
 
 //
 // 语义分析与代码生成
 //
 
 // 代码生成入口函数
-void codegen(Node *Nd);
+void codegen(Function *Prog);

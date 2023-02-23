@@ -1,5 +1,8 @@
 #include "rvcc.h"
 
+// 在解析时，全部的变量实例都被累加到这个列表里。
+Obj *Locals;
+
 // program = stmt*
 // stmt = exprStmt
 // exprStmt = expr ";"
@@ -21,6 +24,18 @@ static Node *add(Token **Rest, Token *Tok);
 static Node *mul(Token **Rest, Token *Tok);
 static Node *unary(Token **Rest, Token *Tok);
 static Node *primary(Token **Rest, Token *Tok);
+
+// 通过名称，查找一个本地变量
+static Obj *findVar(Token *Tok) {
+	for (Obj *Var = Locals; Var; Var = Var->Next) {
+		// 查找Locals变量中是否存在同名变量
+		if (strlen(Var->Name) == Tok->len && 
+			!strncmp(Var->Name, Tok->Loc, Tok->len)) {
+				return Var;
+			}
+	}
+	return NULL;
+}
 
 // 新建一个节点
 static Node *newNode(NodeKind kind) {
@@ -52,10 +67,20 @@ static Node *newNum(int Val) {
 }
 
 // 新建一个变量
-static Node *newVarNode(char Name) {
+static Node *newVarNode(Obj *Var) {
 	Node *Nd = newNode(ND_VAR);
-	Nd->varName = Name;
+	Nd->Var = Var;
 	return Nd;
+}
+
+// 在链表中新增一个变量
+static Obj *newLVar(char *Name) {
+	Obj *Var = calloc(1, sizeof(Obj));
+	Var->Name = Name;
+	// 将变量插入头部
+	Var->Next = Locals;
+	Locals = Var;
+	return Var;
 }
 
 // 解析语句
@@ -226,9 +251,15 @@ static Node *primary(Token **Rest, Token *Tok) {
 
 	// ident
 	if (Tok->kind == TK_IDENT) {
-		Node *Nd = newVarNode(*Tok->Loc);
+		// 查找一个变量
+		Obj *Var = findVar(Tok);
+		// 如果变量不存在 就在链表中新增一个变量
+		if (!Var) {
+			// strndup 复制n个字符
+			Var = newLVar(strndup(Tok->Loc, Tok->len));
+		}
 		*Rest = Tok->Next;
-		return Nd;
+		return newVarNode(Var);
 	}
 
 	// num
@@ -243,12 +274,17 @@ static Node *primary(Token **Rest, Token *Tok) {
 }
 
 // 语法解析入口函数
-Node *parse(Token *Tok) {
+Function *parse(Token *Tok) {
     Node Head = {};
 	Node *Cur = &Head;
     while (Tok->kind != TK_EOF) {
 		Cur->Next = stmt(&Tok, Tok);
 		Cur = Cur->Next;
 	}
-    return Head.Next;
+    
+	// 函数体存储语句的AST，Locals存储变量
+	Function *Prog = calloc(1, sizeof(Function));
+	Prog->Body = Head.Next;
+	Prog->Locals = Locals;
+	return Prog;
 }

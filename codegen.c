@@ -17,12 +17,17 @@ static void pop(char *Reg) {
 	Depth--;
 }
 
+// 对齐到Align的整数倍
+static int alignTo(int N, int Align) {
+  // (0,Align]返回Align
+  return (N + Align - 1) / Align * Align;
+}
+
 // 计算给定节点的绝对地址
 static void genAddr(Node *Nd) {
 	if (Nd->Kind == ND_VAR) {
-		// 偏移量=是两个字母在ASCII码表中的距离加1后乘以8，*8表示每个变量需要八个字节单位的内存
-		int Offset = (Nd->varName - 'a' + 1) * 8;
-		printf("  addi a0, fp, %d\n", -Offset);
+		// 相对于fp而言
+		printf("  addi a0, fp, %d\n", Nd->Var->offset);
 		return;
 	}
 	error("not an lvalue");
@@ -124,20 +129,32 @@ static void genStmt(Node *Nd) {
 	error("invalid expression");
 }
 
-void codegen(Node *Nd) {
+// 根据变量的链表计算出偏移量
+static void assignLVarOffsets(Function *Prog) {
+	int Offset = 0;
+	// 读取所有变量
+	for (Obj *Var = Prog->Locals; Var; Var = Var->Next) {
+		// 每个变量分配8字节
+		Offset += 8;
+		// 为每个变量赋一个偏移量，或者说是栈中地址
+		Var->offset = -Offset;
+	}
+	// 将栈对齐到16字节
+	Prog->StackSize = alignTo(Offset, 16);
+}
+
+void codegen(Function *Prog) {
+	assignLVarOffsets(Prog);
     // 声明一个全局main段，同时也是程序入口段
 	printf("  .globl main\n");
 	printf("main:\n");
 
 	// 栈布局
 	//-------------------------------// sp
-	//              fp                  fp = sp-8
-	//-------------------------------// fp
-	//              'a'                 fp-8
-	//              'b'                 fp-16
-	//              ...
-	//              'z'                 fp-208
-	//-------------------------------// sp=sp-8-208
+	//              fp
+	//-------------------------------// fp = sp-8
+	//             变量
+	//-------------------------------// sp = sp-8-StackSize
 	//           表达式计算
 	//-------------------------------//
 
@@ -148,16 +165,21 @@ void codegen(Node *Nd) {
 	// 将sp写入fp
 	printf("  mv fp, sp\n");
 
-	// 26个字母*8字节=208字节，栈腾出208字节的空间
-	printf("  addi sp, sp, -208\n");
+	// 偏移量为实际变量所用的栈大小
+  	printf("  addi sp, sp, -%d\n", Prog->StackSize);
 
 	// 遍历所有语句节点
-	for (Node *N = Nd; N; N = N->Next) {
+	for (Node *N = Prog->Body; N; N = N->Next) {
 		genStmt(N);
 		assert(Depth == 0);
 	}
 
-	// ret为jalr x0, x1, 0别名指令，用于返回子程序
-  	// 返回的为a0的值
+	// Epilogue，后语
+	// 将fp的值改写回sp
+	printf("  mv sp, fp\n");
+	// 将最早fp保存的值弹栈，恢复fp。
+	printf("  ld fp, 0(sp)\n");
+	printf("  addi sp, sp, 8\n");
+	// 返回
 	printf("  ret\n");
 }
