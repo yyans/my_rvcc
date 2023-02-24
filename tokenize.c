@@ -116,6 +116,15 @@ static bool isIdent2(char C) {
 	return isIdent1(C) || ('0' <= C && C <= '9');
 }
 
+// 将关键字终结符转化为对应类型
+static void convertKeywords(Token *Tok) {
+	for (Token *T = Tok; T->kind != TK_EOF; T=T->Next) {
+		if (equal(T, "return")) {
+			T->kind = TK_KEYWORD;
+		}
+	}
+}
+
 // 生成终结符流
 Token *tokenize(char *P) {
 	CurrentInput = P;
@@ -165,6 +174,8 @@ Token *tokenize(char *P) {
 	} 
 	// 解析结束 增加一个EOF 表示结束
 	Cur->Next = newToken(TK_EOF, P, P);
+	// 处理关键字终结符
+	convertKeywords(Head.Next);
 	// Head 无内容
 	return Head.Next;
 }
