@@ -3,6 +3,12 @@
 // 记录栈的深度
 static int Depth;
 
+// if语句嵌入深度计数
+static int count(void) {
+  static int I = 1;
+  return I++;
+}
+
 // 压栈
 static void push() {
 	printf("  addi sp, sp, -8\n");
@@ -123,6 +129,28 @@ static void genExpr(Node *Nd) {
 // 生成语句
 static void genStmt(Node *Nd) {
 	switch (Nd->Kind) {
+		//  生成if语句
+		case ND_IF: {
+			// if嵌入深度
+			int C = count();
+			// 生成条件内语句
+			genExpr(Nd->Cond);
+			// 若a0为0跳转到else 不为0跳转到Then
+			printf("  beqz a0, .L.else.%d\n", C);
+			// 生成Then块语句
+			genStmt(Nd->Then);
+			// 执行完Then跳出
+			printf("  j .L.end.%d\n", C);
+			// else块标志
+			printf(".L.else.%d:\n", C);
+			// 生成Else块语句
+			if (Nd->Els) {
+				genStmt(Nd->Els);
+			}
+			// if语句结束标志
+			printf(".L.end.%d:\n", C);
+			return ;
+		}
 		// 遍历代码块
 		case ND_BLOCK:
 			for (Node *N = Nd->Body; N; N = N->Next) {

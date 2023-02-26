@@ -116,10 +116,23 @@ static bool isIdent2(char C) {
 	return isIdent1(C) || ('0' <= C && C <= '9');
 }
 
+static bool isKeyword(Token *Tok) {
+	// 关键字
+	static char *Kw[] = {"return", "if", "else"};
+
+	// 遍历关键字列表
+	for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); I++) {
+		if (equal(Tok, Kw[I])) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // 将关键字终结符转化为对应类型
 static void convertKeywords(Token *Tok) {
 	for (Token *T = Tok; T->kind != TK_EOF; T=T->Next) {
-		if (equal(T, "return")) {
+		if (isKeyword(Tok)) {
 			T->kind = TK_KEYWORD;
 		}
 	}
