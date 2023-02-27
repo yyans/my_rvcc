@@ -129,6 +129,27 @@ static void genExpr(Node *Nd) {
 // 生成语句
 static void genStmt(Node *Nd) {
 	switch (Nd->Kind) {
+		//  生成for语句
+		case ND_FOR: {
+			int C = count();
+			// 生成条件内语句
+			if (Nd->Init) {
+				genStmt(Nd->Init);
+			}
+			printf(".L.Begin.%d:\n", C);
+			if (Nd->Cond) {
+				genExpr(Nd->Cond);
+			}
+			printf("  beqz a0, .L.End.%d\n", C);
+			// for块内语句
+			genStmt(Nd->Then);
+			if (Nd->Inc) {
+				genExpr(Nd->Inc);
+			}
+			printf("  j .L.Begin.%d\n", C);
+			printf(".L.End.%d:\n", C);
+			return ;
+		}
 		//  生成if语句
 		case ND_IF: {
 			// if嵌入深度

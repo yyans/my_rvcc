@@ -87,6 +87,7 @@ typedef enum {
 	ND_ASSIGN, // 赋值
 	ND_RETURN, // 返回
 	ND_IF,     // if语句
+	ND_FOR,    // for语句
 	ND_BLOCK, // {...} 代码块
 	ND_EXPR_STMT, // 表达式语句
 	ND_VAR, // 变量类型
@@ -102,10 +103,12 @@ struct Node {
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点
 
-	// if 语句
-	Node *Cond; // 条件内的表达式
+	// if语句 | for语句
+	Node *Cond; // 判断语句
 	Node *Then; // 符合条件的语句块
 	Node *Els; // 不符合条件的语句块
+	Node *Init; // 初始状态语句
+	Node *Inc; // 自增语句
 
 	// 代码块
 	Node *Body;

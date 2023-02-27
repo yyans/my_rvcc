@@ -59,6 +59,7 @@ bool equal(Token *token, char *Str) {
 	// 同时确保，此处的Op位数=N
 	return memcmp(token->Loc, Str, token->len) == 0 && Str[token->len] == '\0';
 }
+
 // 跳过指定的Str
 Token *skip(Token *token, char *Str) {
 	if (!equal(token, Str)) {
@@ -118,9 +119,10 @@ static bool isIdent2(char C) {
 
 static bool isKeyword(Token *Tok) {
 	// 关键字
-	static char *Kw[] = {"return", "if", "else"};
+	static char *Kw[] = {"return", "if", "else", "for"};
 
 	// 遍历关键字列表
+	// 指针数组（存放的指针个数）除以指针大小
 	for (int I = 0; I < sizeof(Kw) / sizeof(*Kw); I++) {
 		if (equal(Tok, Kw[I])) {
 			return true;
