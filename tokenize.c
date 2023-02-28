@@ -119,7 +119,7 @@ static bool isIdent2(char C) {
 
 static bool isKeyword(Token *Tok) {
 	// 关键字
-	static char *Kw[] = {"return", "if", "else", "for"};
+	static char *Kw[] = {"return", "if", "else", "for", "while"};
 
 	// 遍历关键字列表
 	// 指针数组（存放的指针个数）除以指针大小

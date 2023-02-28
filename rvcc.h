@@ -103,7 +103,7 @@ struct Node {
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点
 
-	// if语句 | for语句
+	// if语句 | for语句 | while语句
 	Node *Cond; // 判断语句
 	Node *Then; // 符合条件的语句块
 	Node *Els; // 不符合条件的语句块

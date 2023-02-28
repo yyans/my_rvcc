@@ -8,6 +8,7 @@ Obj *Locals;
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//        | "while" "(" expr ")" stmt
 //        | "{" compoundStmt
 //        | exprStmt
 // exprStmt = expr? ";"
@@ -93,6 +94,7 @@ static Obj *newLVar(char *Name) {
 // stmt = "return" expr ";"
 //        | "if" "(" expr ")" stmt ("else" stmt)?
 //        | "for" "(" exprStmt expr? ";" expr? ")" stmt
+//        | "while" "(" expr ")" stmt
 //        | "{" compoundStmt
 //        | exprStmt
 static Node *stmt(Token **Rest, Token *Tok) { 
@@ -137,6 +139,21 @@ static Node *stmt(Token **Rest, Token *Tok) {
 		if (!equal(Tok, ")")) {
 			Nd->Inc = expr(&Tok, Tok);
 		}
+		Tok = skip(Tok, ")");
+		// stmt
+		Nd->Then = stmt(&Tok, Tok);
+		*Rest = Tok;
+		return Nd;
+	}
+
+	// "while" "(" expr ")" stmt
+	if (equal(Tok, "while")) {
+		Node *Nd = newNode(ND_FOR);
+		// "("
+		Tok = skip(Tok->Next, "(");
+		// expr
+		Nd->Cond = expr(&Tok, Tok);
+		// ")"
 		Tok = skip(Tok, ")");
 		// stmt
 		Nd->Then = stmt(&Tok, Tok);

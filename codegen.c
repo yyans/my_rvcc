@@ -129,7 +129,7 @@ static void genExpr(Node *Nd) {
 // 生成语句
 static void genStmt(Node *Nd) {
 	switch (Nd->Kind) {
-		//  生成for语句
+		//  生成for语句或者while语句
 		case ND_FOR: {
 			int C = count();
 			// 生成条件内语句
