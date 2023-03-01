@@ -99,6 +99,7 @@ typedef struct Node Node;
 struct Node {
 	NodeKind Kind; // 节点类型
 	Node *Next; // 下一个表达式
+	Token *Tok; // 节点对应的终结符
 
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点

@@ -33,13 +33,15 @@ static int alignTo(int N, int Align) {
 
 // 计算给定节点的绝对地址
 static void genAddr(Node *Nd) {
-	printf("  # 获取变量%s的偏移地址%d并存入a0\n", Nd->Var->Name, Nd->Var->offset);
+	if (Nd->Var) {
+		printf("  # 获取变量%s的偏移地址%d并存入a0\n", Nd->Var->Name, Nd->Var->offset);
+	}
 	if (Nd->Kind == ND_VAR) {
 		// 相对于fp而言
 		printf("  addi a0, fp, %d\n", Nd->Var->offset);
 		return;
 	}
-	error("not an lvalue");
+	errorTok(Nd->Tok, "not an lvalue");
 }
 
 // 生成表达式
@@ -135,7 +137,7 @@ static void genExpr(Node *Nd) {
 			break;
 	}
 
-	error("invalid expression");
+	errorTok(Nd->Tok, "invalid expression");
 }
 
 // 生成语句
@@ -223,7 +225,7 @@ static void genStmt(Node *Nd) {
 		default:
 			break;
 	}
-	error("invalid expression");
+	errorTok(Nd->Tok, "invalid expression");
 }
 
 // 根据变量的链表计算出偏移量
