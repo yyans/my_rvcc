@@ -291,6 +291,64 @@ static Node *relational(Token **Rest, Token *Tok) {
 	}
 }
 
+static Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
+	// 为左右节点添加类型
+	addType(LHS);
+	addType(RHS);
+
+	// num + num
+	if (isInteger(LHS->Ty) && isInteger(RHS->Ty)) {
+		return newBinary(ND_ADD, LHS, RHS, Tok);
+	}
+	
+	// ptr + ptr 
+	if (LHS->Ty->Base && RHS->Ty->Base) {
+		errorTok(Tok, "invalid operands");
+	}
+
+	// num + ptr -> ptr + num
+	if (!LHS->Ty->Base && RHS->Ty->Base) {
+		Node *Tmp = LHS;
+		LHS = RHS;
+		RHS = Tmp;
+  	}
+
+	// ptr + num
+	// 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×8 操作
+	RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+	return newBinary(ND_ADD, LHS, RHS, Tok);
+}
+
+static Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
+	// 为左右部添加类型
+	addType(LHS);
+	addType(RHS);
+
+	// num - num
+	if (isInteger(LHS->Ty) && isInteger(RHS->Ty))
+		return newBinary(ND_SUB, LHS, RHS, Tok);
+
+	// ptr - num
+	if (LHS->Ty->Base && isInteger(RHS->Ty)) {
+		RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+		addType(RHS); // 这里为什么要？
+		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
+		// 节点类型为指针
+		Nd->Ty = LHS->Ty;
+		return Nd;
+	}
+
+	// ptr - ptr，返回两指针间有多少元素
+	if (LHS->Ty->Base && RHS->Ty->Base) {
+		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
+		Nd->Ty = TyInt;
+		return newBinary(ND_DIV, Nd, newNum(8, Tok), Tok);
+	}
+
+	errorTok(Tok, "invalid operands");
+	return NULL;
+}
+
 // 解析加减
 // add = mul ("+" mul | "-" mul)*
 static Node *add(Token **Rest, Token *Tok) {
@@ -301,13 +359,13 @@ static Node *add(Token **Rest, Token *Tok) {
 		Token *Start = Tok;
 		// + mul
 		if (equal(Tok, "+")) {
-			Nd = newBinary(ND_ADD, Nd, mul(&Tok, Tok->Next), Tok);
+			Nd = newAdd(Nd, mul(&Tok, Tok->Next), Tok);
 			continue;
 		}
 		
 		// - mul
 		if (equal(Tok, "-")) {
-			Nd = newBinary(ND_SUB, Nd, mul(&Tok, Tok->Next), Tok);
+			Nd = newSub(Nd, mul(&Tok, Tok->Next), Tok);
 			continue;
 		}
 
