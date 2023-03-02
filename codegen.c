@@ -3,6 +3,8 @@
 // 记录栈的深度
 static int Depth;
 
+static void genExpr(Node *Nd);
+
 // if语句嵌入深度计数
 static int count(void) {
   static int I = 1;
@@ -33,13 +35,18 @@ static int alignTo(int N, int Align) {
 
 // 计算给定节点的绝对地址
 static void genAddr(Node *Nd) {
-	if (Nd->Var) {
-		printf("  # 获取变量%s的偏移地址%d并存入a0\n", Nd->Var->Name, Nd->Var->offset);
-	}
-	if (Nd->Kind == ND_VAR) {
-		// 相对于fp而言
-		printf("  addi a0, fp, %d\n", Nd->Var->offset);
-		return;
+	switch (Nd->Kind) {
+		// 变量
+		case ND_VAR:
+			printf("  # 获取变量%s的偏移地址%d并存入a0\n", Nd->Var->Name, Nd->Var->offset);
+			printf("  addi a0, fp, %d\n", Nd->Var->offset);
+			return;
+		// 解引用 *
+		case ND_DEREF:
+			genExpr(Nd->LHS);
+			return ;
+		default:
+			return ;
 	}
 	errorTok(Nd->Tok, "not an lvalue");
 }
@@ -63,6 +70,16 @@ static void genExpr(Node *Nd) {
 		genAddr(Nd);
 		printf("  # 读取a0中的地址 将值存入a0\n"); 
 		printf("  ld a0, 0(a0)\n");
+		return ;
+	// 解引用
+	case ND_DEREF:
+		genExpr(Nd->LHS);
+		printf("  # 读取a0中存放的地址，得到的值存入a0\n");
+		printf("  ld a0, 0(a0)\n");
+		return ;
+	// 取地址
+	case ND_ADDR:
+		genAddr(Nd->LHS);
 		return ;
 	case ND_ASSIGN:
 		// 加载地址到a0

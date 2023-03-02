@@ -18,7 +18,7 @@ Obj *Locals;
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
 // add = mul ("+" mul | "-" mul)*
 // mul = unary ("*" unary | "/" unary)*
-// unary = ("+" | "-") unary | primary
+// unary = ("+" | "-" | "*" | "&") unary | primary
 // primary = "(" expr ")" | ident｜ num
 static Node *compoundStmt(Token **Rest, Token *Tok);
 static Node *stmt(Token **Rest, Token *Tok);
@@ -214,14 +214,13 @@ static Node *expr(Token **Rest, Token *Tok) { return assign(Rest, Tok); }
 // 解析赋值
 // assign = equality ("=" assign)
 static Node *assign(Token **Rest, Token *Tok) {
-	Token *Start = Tok;
 	// equality
 	Node *Nd = equality(&Tok, Tok);
 
 	// 可能存在递归赋值 但是原程序没写 我就没写
 	// ("=" assign)
 	if (equal(Tok, "=")) {
-		Nd = newBinary(ND_ASSIGN, Nd, assign(&Tok, Tok->Next), Start);
+		Nd = newBinary(ND_ASSIGN, Nd, assign(&Tok, Tok->Next), Tok);
 	}
 	*Rest = Tok;
 	return Nd;
@@ -342,6 +341,7 @@ static Node *mul(Token **Rest, Token *Tok) {
 }
 
 // 解析 正负号
+// unary = ("+" | "-" | "*" | "&") unary | primary
 static Node *unary(Token **Rest, Token *Tok) {
 	// + unary
 	if (equal(Tok, "+")) {
@@ -350,7 +350,17 @@ static Node *unary(Token **Rest, Token *Tok) {
 
 	// - unary
 	if (equal(Tok, "-")) {
-		return newUnary(ND_NEG, unary(Rest, Tok->Next), Tok->Next);
+		return newUnary(ND_NEG, unary(Rest, Tok->Next), Tok);
+	}
+
+	// * unary
+	if (equal(Tok, "*")) {
+		return newUnary(ND_DEREF, unary(Rest, Tok->Next), Tok);
+	}
+
+	// & unary
+	if (equal(Tok, "&")) {
+		return newUnary(ND_ADDR, unary(Rest, Tok->Next), Tok);
 	}
 
 	return primary(Rest, Tok);
