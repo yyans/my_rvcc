@@ -184,6 +184,8 @@ static Node *compoundStmt(Token **Rest, Token *Tok) {
 	while (!equal(Tok, "}")) {
 		Cur->Next = stmt(&Tok, Tok);
 		Cur = Cur->Next;
+		// 为节点添加类型
+		addType(Nd);
 	}
 
 	// Body储存了{}内解析的所有语句
@@ -296,55 +298,50 @@ static Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
 	addType(LHS);
 	addType(RHS);
 
-	// num + num
+	// num + num 
 	if (isInteger(LHS->Ty) && isInteger(RHS->Ty)) {
 		return newBinary(ND_ADD, LHS, RHS, Tok);
 	}
-	
-	// ptr + ptr 
+	// ptr  ptr 
 	if (LHS->Ty->Base && RHS->Ty->Base) {
 		errorTok(Tok, "invalid operands");
 	}
-
 	// num + ptr -> ptr + num
 	if (!LHS->Ty->Base && RHS->Ty->Base) {
-		Node *Tmp = LHS;
+		Node *Temp = LHS;
 		LHS = RHS;
-		RHS = Tmp;
-  	}
-
+		RHS = Temp;
+	}
 	// ptr + num
-	// 指针加法，ptr+1，这里的1不是1个字节，而是1个元素的空间，所以需要 ×8 操作
+	// 指针加1*8
 	RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
 	return newBinary(ND_ADD, LHS, RHS, Tok);
 }
 
 static Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
-	// 为左右部添加类型
+	// 为左右节点添加类型
 	addType(LHS);
 	addType(RHS);
 
 	// num - num
-	if (isInteger(LHS->Ty) && isInteger(RHS->Ty))
+	if (isInteger(LHS->Ty) && isInteger(RHS->Ty)) {
 		return newBinary(ND_SUB, LHS, RHS, Tok);
-
-	// ptr - num
-	if (LHS->Ty->Base && isInteger(RHS->Ty)) {
-		RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
-		addType(RHS); // 这里为什么要？
-		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
-		// 节点类型为指针
-		Nd->Ty = LHS->Ty;
-		return Nd;
 	}
-
-	// ptr - ptr，返回两指针间有多少元素
+	// ptr - ptr
 	if (LHS->Ty->Base && RHS->Ty->Base) {
 		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
-		Nd->Ty = TyInt;
-		return newBinary(ND_DIV, Nd, newNum(8, Tok), Tok);
+		Nd->Ty = TyInt; 
+		return newBinary(ND_DIV, Nd, newNode(8, Tok), Tok);
 	}
-
+	// ptr - num
+	if (LHS->Ty->Base && !RHS->Ty->Base) {
+		RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+		addType(RHS); // 原项目加的 但我觉得加不加无所谓
+		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
+		Nd->Ty = TyInt;
+		return Nd;
+	}
+	
 	errorTok(Tok, "invalid operands");
 	return NULL;
 }
@@ -375,6 +372,7 @@ static Node *add(Token **Rest, Token *Tok) {
 }
 
 // 解析乘除
+// mul = unary ("*" unary | "/" unary)*
 static Node *mul(Token **Rest, Token *Tok) {
 	// primary
 	Node *Nd = unary(&Tok, Tok);
