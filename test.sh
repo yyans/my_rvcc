@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# 将下面代码编译为tmp2.o "-xc"强制以c语言进行编译
+cat << EOF | ~/riscv/bin/riscv64-unknown-linux-gnu-gcc -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret5() { return 5; }
+EOF
+
 assert() {
   exepected="$1"
   input="$2"
@@ -9,7 +15,7 @@ assert() {
   ./rvcc "$input" > tmp.s || exit
   
   # 编译rvcc产生的汇编文件
-  ~/riscv/bin/riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s
+  ~/riscv/bin/riscv64-unknown-linux-gnu-gcc -static -o tmp tmp.s tmp2.o
 
   # qemu运行
   ~/riscv/bin/qemu-riscv64 -L ~/riscv/sysroot ./tmp
@@ -125,5 +131,9 @@ assert 7 '{ int x=3; int y=5; *(&x+1)=7; return y; }'
 assert 8 '{ int x, y; x=3; y=5; return x+y; }'
 assert 8 '{ int x=3, y=5; return x+y; }'
 
+# [23] 支持零参函数调用
+assert 3 '{ return ret3(); }'
+assert 5 '{ return ret5(); }'
+assert 8 '{ return ret3()+ret5(); }'
 
 echo OK

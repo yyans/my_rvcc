@@ -51,6 +51,7 @@ void addType(Node *Nd) {
         case ND_LT:
         case ND_LE:
         case ND_NUM:
+        case ND_FUNCALL:
             Nd->Ty = TyInt;
             return;
         // 将节点类型设置为变量类型
