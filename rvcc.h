@@ -47,6 +47,7 @@ void errorTok(Token *Tok, char *Fmt, ...);
 // 判断Token与Str的关系
 bool equal(Token *Tok, char *Str);
 Token *skip(Token *Tok, char *Str);
+bool consume(Token **Rest, Token *Tok, char *Str);
 // 词法分析
 Token *tokenize(char *Input);
 
@@ -63,6 +64,7 @@ typedef struct Obj Obj;
 struct Obj {
 	Obj *Next; // 指向下一个对象
 	char *Name; // 变量名
+	Type *Ty; // 变量类型
 	int offset; // 变量在栈中的偏移量
 };
 
@@ -101,7 +103,7 @@ struct Node {
 	NodeKind Kind; // 节点类型
 	Node *Next; // 下一个表达式
 	Token *Tok; // 节点对应的终结符
-	Type *Ty;
+	Type *Ty;   // 节点类型
 
 	Node *LHS; // 左节点
 	Node *RHS; // 右节点
@@ -134,7 +136,12 @@ typedef enum {
 
 struct Type {
 	TypeKind Kind; // 种类
+
+	// 指针
 	Type *Base; // 指向的基类
+
+	// 变量名
+	Token *Name;
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -144,6 +151,8 @@ extern Type *TyInt;
 bool isInteger(Type *TY);
 // 为节点内的所有节点添加类型
 void addType(Node *Nd);
+// 构建一个指针类型并指向基类
+Type *pointerTo(Type *Base);
 
 //
 // 语义分析与代码生成

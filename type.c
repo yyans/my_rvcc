@@ -50,20 +50,22 @@ void addType(Node *Nd) {
         case ND_NE:
         case ND_LT:
         case ND_LE:
-        case ND_VAR:
         case ND_NUM:
             Nd->Ty = TyInt;
             return;
+        // 将节点类型设置为变量类型
+        case ND_VAR:
+            Nd->Ty = Nd->Var->Ty;
+            return ;
         // 将节点类型设为 指针，并指向左部的类型
         case ND_ADDR:
             Nd->Ty = pointerTo(Nd->LHS->Ty);
             return ;
         case ND_DEREF:
-            if (Nd->LHS->Ty->Kind == TY_PTR) {
-                Nd->Ty = Nd->LHS->Ty->Base;
-            } else {
-                Nd->Ty = TyInt;
+            if (Nd->LHS->Ty->Kind != TY_PTR) {
+                errorTok(Nd->Tok, "invalid pointer dereference");
             }
+            Nd->Ty = Nd->LHS->Ty->Base;
             return ;
         default:
             break;

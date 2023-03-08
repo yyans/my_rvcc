@@ -68,6 +68,18 @@ Token *skip(Token *token, char *Str) {
 	return token->Next;
 }
 
+// 消耗掉指定Token
+bool consume(Token **Rest, Token *Tok, char *Str) {
+	// 存在
+	if (equal(Tok, Str)) {
+		*Rest = Tok->Next;
+		return true;
+	}
+	// 不存在
+	*Rest = Tok;
+	return false;
+}
+
 // 返回TK_NUM的值
 static int getNumber(Token *token) {
 	if (token->kind != TK_NUM) {
