@@ -71,6 +71,8 @@ struct Obj {
 // 函数
 typedef struct Function Function;
 struct Function {
+	Function *Next; // 下一个函数
+	char *Name; // 函数名
 	Node *Body; // 函数体
 	Obj *Locals; // 本地变量
 	int StackSize; // 存储变量的栈大小
@@ -137,6 +139,7 @@ Function *parse(Token *Tok);
 typedef enum {
 	TY_INT, // int类型
 	TY_PTR, // 指针
+	Ty_FUNC, // 函数
 } TypeKind;
 
 struct Type {
@@ -147,6 +150,9 @@ struct Type {
 
 	// 变量名
 	Token *Name;
+
+	// 函数类型
+	Type *ReturnTy; // 函数返回类型
 };
 
 // 声明一个全局变量，定义在type.c中。
@@ -158,6 +164,8 @@ bool isInteger(Type *TY);
 void addType(Node *Nd);
 // 构建一个指针类型并指向基类
 Type *pointerTo(Type *Base);
+// 函数类型
+Type *funcType(Type *ReturnTy);
 
 //
 // 语义分析与代码生成

@@ -4,6 +4,8 @@
 static int Depth;
 // 用于函数参数的寄存器们
 static char *ArgReg[] = {"a0", "a1", "a2", "a3", "a4", "a5"};
+// 当前的函数
+static Function *CurrentFn;
 
 static void genExpr(Node *Nd);
 
@@ -249,8 +251,8 @@ static void genStmt(Node *Nd) {
 			genExpr(Nd->LHS);
 			// 无条件跳转语句，跳转到.L.return段
     		// j offset是 jal x0, offset的别名指令
-			printf("  # 跳转到.L.return段\n");
-			printf("  j .L.return\n");
+			printf("  # 跳转到.L.return.%s段\n", CurrentFn->Name);
+			printf("  j .L.return.%s\n", CurrentFn->Name);
 			return;
 		// 生成表达式语句
 		case ND_EXPR_STMT:
@@ -264,74 +266,79 @@ static void genStmt(Node *Nd) {
 
 // 根据变量的链表计算出偏移量
 static void assignLVarOffsets(Function *Prog) {
-	int Offset = 0;
-	// 读取所有变量
-	for (Obj *Var = Prog->Locals; Var; Var = Var->Next) {
-		// 每个变量分配8字节
-		Offset += 8;
-		// 为每个变量赋一个偏移量，或者说是栈中地址
-		Var->offset = -Offset;
+	for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
+		int Offset = 0;
+		// 读取所有变量
+		for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
+			// 每个变量分配8字节
+			Offset += 8;
+			// 为每个变量赋一个偏移量，或者说是栈中地址
+			Var->offset = -Offset;
+		}
+		// 将栈对齐到16字节
+		Fn->StackSize = alignTo(Offset, 16);
 	}
-	// 将栈对齐到16字节
-	Prog->StackSize = alignTo(Offset, 16);
 }
 
 void codegen(Function *Prog) {
 	assignLVarOffsets(Prog);
-    // 声明一个全局main段，同时也是程序入口段
-	printf("  # 定义全局main段\n");
-	printf("  .globl main\n");
-	printf("\n# =====程序开始===============\n");
-	printf("# main段标签，也是程序入口段\n");
-	printf("main:\n");
+	for (Function *Fn = Prog; Fn; Fn = Fn->Next) {
+		// 声明一个全局main段，同时也是程序入口段
+		printf("  # 定义全局%s段\n", Fn->Name);
+		printf("  .globl %s\n", Fn->Name);
+		printf("\n# =====程序开始===============\n");
+		printf("# %s段标签\n", Fn->Name);
+		printf("%s:\n", Fn->Name);
+		CurrentFn = Fn;
 
-	// 栈布局
-	//-------------------------------// sp
-	//              ra
-	//-------------------------------// ra = sp-8
-	//              fp
-	//-------------------------------// fp = sp-16
-	//             变量
-	//-------------------------------// sp = sp-8-StackSize
-	//           表达式计算
-	//-------------------------------//
+		// 栈布局
+		//-------------------------------// sp
+		//              ra
+		//-------------------------------// ra = sp-8
+		//              fp
+		//-------------------------------// fp = sp-16
+		//             变量
+		//-------------------------------// sp = sp-8-StackSize
+		//           表达式计算
+		//-------------------------------//
 
-	// Prologue, 前言
-	// 将寄存器ra压栈 保存ra的值
-	printf("  # 将ra寄存器压栈,保存ra的值\n");
-	printf("  addi sp, sp, -16\n");
-	printf("  sd ra, 8(sp)\n");
-	// 将fp压入栈中，保存fp的值
-	printf("  # 将fp压栈,fp属于“被调用者保存”的寄存器,需要恢复原值\n");
-	printf("  sd fp, 0(sp)\n");
-	// 将sp写入fp
-	printf("  # 将sp的值写入fp\n");
-	printf("  mv fp, sp\n");
+		// Prologue, 前言
+		// 将寄存器ra压栈 保存ra的值
+		printf("  # 将ra寄存器压栈,保存ra的值\n");
+		printf("  addi sp, sp, -16\n");
+		printf("  sd ra, 8(sp)\n");
+		// 将fp压入栈中，保存fp的值
+		printf("  # 将fp压栈,fp属于“被调用者保存”的寄存器,需要恢复原值\n");
+		printf("  sd fp, 0(sp)\n");
+		// 将sp写入fp
+		printf("  # 将sp的值写入fp\n");
+		printf("  mv fp, sp\n");
 
-	// 偏移量为实际变量所用的栈大小
-	printf("  # sp腾出StackSize大小的栈空间\n");
-  	printf("  addi sp, sp, -%d\n", Prog->StackSize);
+		// 偏移量为实际变量所用的栈大小
+		printf("  # sp腾出StackSize大小的栈空间\n");
+		printf("  addi sp, sp, -%d\n", Fn->StackSize);
 
-	// 生成语句链表的代码
-	printf("\n# =====程序主体===============\n");
-	genStmt(Prog->Body);
-	assert(Depth == 0);
+		// 生成语句链表的代码
+		printf("\n# =====程序主体===============\n");
+		genStmt(Fn->Body);
+		assert(Depth == 0);
 
-	// Epilogue，后语
-	// 输出标签
-	printf("\n# =====程序结束===============\n");
- 	printf("# return段标签\n");
-	printf(".L.return:\n");
-	// 将fp的值改写回sp
-	printf("  # 将fp的值写回sp\n");
-	printf("  mv sp, fp\n");
-	// 将最早fp保存的值弹栈，恢复fp
-	printf("  # 将第二个保存的值fp弹栈，恢复fp和sp\n");
-	printf("  ld fp, 0(sp)\n");
-	printf("  # 将ra的寄存器弹栈， 恢复ra\n");
-	printf("  ld ra, 8(sp)\n");
-	printf("  addi sp, sp, 16\n");
-	// 返回
-	printf("  # 返回a0值给系统调用\n");
-	printf("  ret\n");
+		// Epilogue，后语
+		// 输出标签
+		printf("\n# =====%s结束===============\n", Fn->Name);
+		printf("# return段标签\n");
+		printf(".L.return.%s:\n", Fn->Name);
+		// 将fp的值改写回sp
+		printf("  # 将fp的值写回sp\n");
+		printf("  mv sp, fp\n");
+		// 将最早fp保存的值弹栈，恢复fp
+		printf("  # 将fp寄存器的值弹栈，恢复fp\n");
+		printf("  ld fp, 0(sp)\n");
+		printf("  # 将ra的寄存器弹栈， 恢复ra\n");
+		printf("  ld ra, 8(sp)\n");
+		printf("  addi sp, sp, 16\n");
+		// 返回
+		printf("  # 返回a0值给系统调用\n");
+		printf("  ret\n");
+	}
 }
