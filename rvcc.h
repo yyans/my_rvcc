@@ -120,7 +120,8 @@ struct Node {
 	Node *Body;
 
 	// 函数调用
-	Node *FuncName; // 函数名
+	char *FuncName; // 函数名
+	Node *Args;     // 函数参数
 
 	Obj *Var; // 存储ND_VAR种类的变量
 	int Val; // 储存ND_NUM种类的值
