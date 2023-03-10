@@ -318,6 +318,12 @@ void codegen(Function *Prog) {
 		printf("  # sp腾出StackSize大小的栈空间\n");
 		printf("  addi sp, sp, -%d\n", Fn->StackSize);
 
+		int I = 0;
+		for (Obj *Var = Fn->Params; Var; Var = Var->Next) {
+			printf("  # 将寄存器%s的值存入变量名%s的栈地址中\n", ArgReg[I], Var->Name);
+			printf("  sd %s, %d(fp)\n", ArgReg[I++], Var->offset);
+		}
+
 		// 生成语句链表的代码
 		printf("\n# =====程序主体===============\n");
 		genStmt(Fn->Body);
