@@ -55,6 +55,22 @@ static void genAddr(Node *Nd) {
 	errorTok(Nd->Tok, "not an lvalue");
 }
 
+// 加载a0指向的值
+static void load(Type *Ty) {
+	if (Ty->Kind == TY_ARRAY) {
+		return ;
+	}
+	printf("  # 读取a0中存放的地址 得到的值存入a0\n");
+	printf("  ld a0, 0(a0)\n");
+}
+
+// 将栈顶值(是一个地址)存入a0
+static void store(void) {
+	pop("a1");
+	printf("  # 将a0的值写入到a1存放的地址处\n");
+	printf("  sd a0, 0(a1)\n");
+}
+
 // 生成表达式
 static void genExpr(Node *Nd) {
 	switch (Nd->Kind) {
@@ -72,14 +88,12 @@ static void genExpr(Node *Nd) {
 	case ND_VAR:
 		// 计算出变量的地址，然后存入a0
 		genAddr(Nd);
-		printf("  # 读取a0中的地址 将值存入a0\n"); 
-		printf("  ld a0, 0(a0)\n");
+		load(Nd->Ty);
 		return ;
 	// 解引用
 	case ND_DEREF:
 		genExpr(Nd->LHS);
-		printf("  # 读取a0中存放的地址，得到的值存入a0\n");
-		printf("  ld a0, 0(a0)\n");
+		load(Nd->Ty);
 		return ;
 	// 取地址
 	case ND_ADDR:
@@ -91,9 +105,7 @@ static void genExpr(Node *Nd) {
 		// 推入栈中
 		push();
 		genExpr(Nd->RHS);
-		pop("a1");
-		printf("  # 将a0的值存入到a1中的地址处\n");
-		printf("  sd a0, 0(a1)\n");
+		store();
 		return ;
 	case ND_FUNCALL:
 		// 记录参数个数
@@ -271,7 +283,7 @@ static void assignLVarOffsets(Function *Prog) {
 		// 读取所有变量
 		for (Obj *Var = Fn->Locals; Var; Var = Var->Next) {
 			// 每个变量分配8字节
-			Offset += 8;
+			Offset += Var->Ty->Size;
 			// 为每个变量赋一个偏移量，或者说是栈中地址
 			Var->offset = -Offset;
 		}

@@ -7,8 +7,8 @@ Obj *Locals;
 // functionDefinition = declspec declarator "{" compoundStmt*
 // declspec = "int"
 // declarator = "*"* ident typeSuffix
-// typeSuffix = ("(" funcParams? ")")?
-// funcParams = param ("," param)*
+// typeSuffix = "(" funcParams | "[" num "]" | ε
+// funcParams = (param ("," param)*)? ")"
 // param = declspec declarator
 
 // compoundStmt = (declaration | stmt)* "}"
@@ -107,11 +107,19 @@ static Obj *newLVar(char *Name, Type *Ty) {
 }
 
 // 获取标识符
-static char *getIdent(Token * Tok) {
+static char *getIdent(Token *Tok) {
 	if (Tok->kind != TK_IDENT) {
 		errorTok(Tok, "expected an identifier");
 	}
 	return strndup(Tok->Loc, Tok->len);
+}
+
+// 获取数字
+static int getNumber(Token *Tok) {
+	if (Tok->kind != TK_NUM) {
+		errorTok(Tok, "expected a number");
+	}
+	return Tok->val;
 }
 
 // declspec = "int"
@@ -121,36 +129,44 @@ static Type *declspec(Token **Rest, Token *Tok) {
 	return TyInt;
 }
 
+// funcParams = (param ("," param)*)? ")"
+// param declspec declarator
+static Type *funcParams(Token **Rest, Token *Tok, Type *Ty) {
+	// 存储形参的链表
+	Type Head = {};
+	Type *Cur = &Head;
+
+	while (!equal(Tok, ")")) {
+		// funcParams = param ("," param)*
+		// param = declspec declarator
+		if (Cur != &Head) {
+			Tok = skip(Tok, ",");
+		}
+		Type *BaseTy = declspec(&Tok, Tok);
+		Type *DeclarTy = declarator(&Tok, Tok, BaseTy);
+		// 将类型复制到形参链表一份
+		Cur->Next = copyType(DeclarTy);
+		Cur = Cur->Next;
+	}
+	// 封装一个函数节点
+	Ty = funcType(Ty);
+	// 传递形参
+	Ty->Params= Head.Next;
+	*Rest = Tok->Next;
+	return Ty;
+}
+
 // typeSuffix = ("(" funcParams? ")")?
-// funcParams = param ("," param)*
 // param = declspec declarator
 static Type *typeSuffix(Token **Rest, Token *Tok, Type *Ty) {
 	// ("(" funcParams? ")")?
 	if (equal(Tok, "(")) {
-		Tok = Tok->Next;
-
-		// 存储形参的链表
-		Type Head = {};
-		Type *Cur = &Head;
-
-		while (!equal(Tok, ")")) {
-			// funcParams = param ("," param)*
-      		// param = declspec declarator
-			if (Cur != &Head) {
-				Tok = skip(Tok, ",");
-			}
-			Type *BaseTy = declspec(&Tok, Tok);
-			Type *DeclarTy = declarator(&Tok, Tok, Ty);
-			// 将类型复制到形参链表一份
-			Cur->Next = copyType(DeclarTy);
-			Cur = Cur->Next;
-		}
-		// 封装一个函数节点
-		Ty = funcType(Ty);
-		// 传递形参
-		Ty->Params= Head.Next;
-		*Rest = Tok->Next;
-		return Ty;
+		return funcParams(Rest, Tok->Next, Ty);
+	}
+	if (equal(Tok, "[")) {
+		int Sz = getNumber(Tok->Next);
+		*Rest = skip(Tok->Next->Next, "]");
+		return arrayOf(Ty, Sz);
 	}
 	*Rest = Tok;
 	return Ty;
@@ -447,7 +463,7 @@ static Node *newAdd(Node *LHS, Node *RHS, Token *Tok) {
 	}
 	// ptr + num
 	// 指针加1*8
-	RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+	RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
 	return newBinary(ND_ADD, LHS, RHS, Tok);
 }
 
@@ -463,7 +479,7 @@ static Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
 
 	// ptr - num
 	if (LHS->Ty->Base && isInteger(RHS->Ty)) {
-		RHS = newBinary(ND_MUL, RHS, newNum(8, Tok), Tok);
+		RHS = newBinary(ND_MUL, RHS, newNum(LHS->Ty->Base->Size, Tok), Tok);
 		addType(RHS); // 原项目加的 但我觉得加不加无所谓
 		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
 		// 节点类型为指针
@@ -471,11 +487,11 @@ static Node *newSub(Node *LHS, Node *RHS, Token *Tok) {
 		return Nd;
 	}
 
-	// ptr - ptr
+	// ptr - ptr   返回指针间的元素个数
 	if (LHS->Ty->Base && RHS->Ty->Base) {
 		Node *Nd = newBinary(ND_SUB, LHS, RHS, Tok);
 		Nd->Ty = TyInt; 
-		return newBinary(ND_DIV, Nd, newNode(8, Tok), Tok);
+		return newBinary(ND_DIV, Nd, newNode(LHS->Ty->Base->Size, Tok), Tok);
 	}
 
 	errorTok(Tok, "invalid operands");

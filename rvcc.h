@@ -141,17 +141,22 @@ Function *parse(Token *Tok);
 typedef enum {
 	TY_INT, // int类型
 	TY_PTR, // 指针
-	Ty_FUNC, // 函数
+	TY_FUNC, // 函数
+	TY_ARRAY, // 数组
 } TypeKind;
 
 struct Type {
 	TypeKind Kind; // 种类
+	int Size;    // 大小 , sizeof的返回值
 
 	// 指针
 	Type *Base; // 指向的基类
 
 	// 类型对应名称  如变量名 函数名
 	Token *Name;
+
+	// 数组
+	int ArrayLen;   // 数组长度，元素个数
 
 	// 函数类型
 	Type *ReturnTy; // 函数返回类型
@@ -166,12 +171,14 @@ extern Type *TyInt;
 bool isInteger(Type *TY);
 // 为节点内的所有节点添加类型
 void addType(Node *Nd);
-// 构建一个指针类型并指向基类
+// 指针类型   指向基类Base
 Type *pointerTo(Type *Base);
 // 函数类型
 Type *funcType(Type *ReturnTy);
 // 复制类型
 Type *copyType(Type *Ty);
+// 数组类型
+Type *arrayOf(Type *Base, int Len);
 
 //
 // 语义分析与代码生成
